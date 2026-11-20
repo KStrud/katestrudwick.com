@@ -7,24 +7,70 @@
   if (layer) {
     var objs = Array.prototype.slice.call(layer.querySelectorAll('.obj'));
     var top = objs.length;
+    var hero = layer.closest('.hero');
+    var h1 = hero.querySelector('h1');
+    var meta = hero.querySelector('.hero-meta');
+    // the arrangement, in the units of Kate's layout sketch (desktop) and a compact version for phones
+    var BOX = { desk: [1690, 832], mob: [390, 340] };
+    var jitter = function () { // a fresh, random landing spot for each object
+      objs.forEach(function (el) {
+        el._j = [Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1];
+      });
+    };
     var place = function () {
-      var key = phone.matches ? 'mob' : 'desk';
-      var k = phone.matches ? 1 : Math.max(1, layer.offsetWidth / 1370); // grow with very wide screens
+      var mob = phone.matches;
+      var vh = window.innerHeight;
+      var heroTop = hero.getBoundingClientRect().top + window.scrollY;
+      var heroH = Math.max(vh - heroTop, 480);              // hero fills the first screen
+      var L = layer.offsetWidth;
+      var hr = h1.getBoundingClientRect(), r0 = hero.getBoundingClientRect();
+      var tTop = hr.top - r0.top, tH = hr.height;
+      var metaH = meta.offsetHeight;
+      var minTop = mob ? tTop + tH * 0.85 : tTop + tH * 0.3;  // how far up into the statement the pile may reach
+      var BOX_W = BOX[mob ? 'mob' : 'desk'][0], BOX_H = BOX[mob ? 'mob' : 'desk'][1];
+      var prefW = mob ? L * 0.98 : L * 0.906;
+      var minW = mob ? L * 0.75 : L * 0.6;
+      var bottom = heroH - 20 - metaH - 14;
+      var w = Math.max(minW, Math.min(prefW, (bottom - minTop) / (BOX_H / BOX_W)));
+      var s = w / BOX_W, h = BOX_H * s;
+      if (minTop + h > bottom) { bottom = minTop + h; heroH = bottom + 14 + metaH + 20; } // too short: let the hero grow
+      hero.style.minHeight = Math.round(heroH) + 'px';
+      var left0 = (mob ? L * 0.01 : L * 0.054) + (prefW - w) / 2, top0 = bottom - h;
       objs.forEach(function (el, i) {
-        var p = el.dataset[key].split(',').map(Number); // x%, y px, width px, rotation deg
-        el.style.left = p[0] + '%';
-        el.style.top = Math.round(p[1] * k) + 'px';
-        el.style.width = phone.matches ? p[2] + 'px' : 'clamp(' + Math.round(p[2] * 0.6) + 'px, ' + (p[2] / 14.4).toFixed(2) + 'vw, ' + Math.round(p[2] * 1.9) + 'px)';
+        var p = (mob ? el.dataset.m : el.dataset.o).split(',').map(Number); // left, top, width, rotation in layout units
+        var j = el._j;
+        var ow = p[2] * s;
+        var x = left0 + p[0] * s + j[0] * w * 0.06;
+        var y = top0 + p[1] * s + j[1] * h * 0.07;
+        x = Math.min(Math.max(x, -L * 0.03), L * 1.03 - ow);
+        el.style.width = Math.round(ow) + 'px';
+        el.style.left = (x / L * 100).toFixed(2) + '%';
+        el.style.top = Math.round(y) + 'px';
         el.style.zIndex = i + 1;
-        el.querySelector('img').style.rotate = p[3] + 'deg';
+        el.querySelector('img').style.rotate = (p[3] + j[2] * 12).toFixed(1) + 'deg';
         el.style.setProperty('--delay', (120 + i * 110) + 'ms');
       });
     };
+    jitter();
     place();
+    window.ksPlaceObjects = place;
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
     if (phone.addEventListener) phone.addEventListener('change', place);
-    var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(place, 200); });
+    var lastW = window.innerWidth, rt;
+    window.addEventListener('resize', function () {
+      // phones resize when the address bar hides; only re-lay out when the width changes there
+      if (phone.matches && window.innerWidth === lastW) return;
+      lastW = window.innerWidth;
+      clearTimeout(rt); rt = setTimeout(place, 200);
+    });
     var tidy = document.querySelector('.tidy');
-    if (tidy) tidy.addEventListener('click', place);
+    if (tidy) tidy.addEventListener('click', function () {
+      jitter(); place();
+      objs.forEach(function (el) { // replay the fall
+        var im = el.querySelector('img');
+        im.style.animation = 'none'; void im.offsetWidth; im.style.animation = '';
+      });
+    });
 
     objs.forEach(function (el) {
       var d = null;
@@ -53,13 +99,20 @@
     var print = document.createElement('div');
     print.className = 'hover-print';
     print.setAttribute('aria-hidden', 'true');
-    print.innerHTML = '<img alt="">';
+    print.innerHTML = '<img alt=""><span class="e"></span>';
+    var emo = print.querySelector('.e');
     document.body.appendChild(print);
     var pimg = print.querySelector('img');
     var tilts = [-6, 5, -3, 7, -8, 4, -5, 6, -4];
     Array.prototype.forEach.call(list.querySelectorAll('.row'), function (row, i) {
       row.addEventListener('mouseenter', function () {
-        pimg.src = row.dataset.print;
+        // confidential projects show a 🤫, and projects with no picture show their own emoji
+        var e = row.hasAttribute('data-hush') ? '🤫' : row.dataset.emoji;
+        var hush = !!e;
+        if (e) emo.textContent = e;
+        print.classList.toggle('hush', hush);
+        print.classList.toggle('wide', row.hasAttribute('data-wide')); // landscape pictures keep their shape
+        if (!hush) pimg.src = row.dataset.print;
         print.style.rotate = tilts[i % tilts.length] + 'deg';
         print.classList.add('on');
       });
@@ -141,6 +194,7 @@
   function fit() {
     var r = w.getBoundingClientRect().left - h.getBoundingClientRect().left;
     h.style.setProperty('--stmt', Math.round(r) + 'px');
+    if (window.ksPlaceObjects) window.ksPlaceObjects();
   }
   fit(); window.addEventListener('resize', fit);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
