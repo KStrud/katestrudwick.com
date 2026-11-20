@@ -9,11 +9,12 @@
     var top = objs.length;
     var place = function () {
       var key = phone.matches ? 'mob' : 'desk';
+      var k = phone.matches ? 1 : Math.max(1, layer.offsetWidth / 1370); // grow with very wide screens
       objs.forEach(function (el, i) {
         var p = el.dataset[key].split(',').map(Number); // x%, y px, width px, rotation deg
         el.style.left = p[0] + '%';
-        el.style.top = p[1] + 'px';
-        el.style.width = phone.matches ? p[2] + 'px' : 'clamp(' + Math.round(p[2] * 0.6) + 'px, ' + (p[2] / 14.4).toFixed(2) + 'vw, ' + p[2] + 'px)';
+        el.style.top = Math.round(p[1] * k) + 'px';
+        el.style.width = phone.matches ? p[2] + 'px' : 'clamp(' + Math.round(p[2] * 0.6) + 'px, ' + (p[2] / 14.4).toFixed(2) + 'vw, ' + Math.round(p[2] * 1.9) + 'px)';
         el.style.zIndex = i + 1;
         el.querySelector('img').style.rotate = p[3] + 'deg';
         el.style.setProperty('--delay', (120 + i * 110) + 'ms');
@@ -21,6 +22,7 @@
     };
     place();
     if (phone.addEventListener) phone.addEventListener('change', place);
+    var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(place, 200); });
     var tidy = document.querySelector('.tidy');
     if (tidy) tidy.addEventListener('click', place);
 
@@ -74,7 +76,7 @@
   /* ---------- Project page: gallery + info panel ---------- */
   var p = document.querySelector('.p');
   if (p) {
-    var imgs = Array.prototype.slice.call(p.querySelectorAll('.p-stage img'));
+    var imgs = Array.prototype.slice.call(p.querySelectorAll('.p-stage > img, .p-stage > .vid'));
     var cap = p.querySelector('.cap');
     var count = p.querySelector('.count');
     var dots = Array.prototype.slice.call(p.querySelectorAll('.p-dots span'));
@@ -82,16 +84,21 @@
     var pad = function (x) { return (x < 10 ? '0' : '') + x; };
     var show = function (k) {
       i = (k + n) % n;
-      imgs.forEach(function (im, j) { im.classList.toggle('on', j === i); });
+      imgs.forEach(function (im, j) {
+        im.classList.toggle('on', j === i);
+        var fr = im.querySelector && im.querySelector('iframe');
+        if (fr) { if (j === i) { if (!fr.src) fr.src = fr.dataset.src; } else if (fr.src) { fr.removeAttribute('src'); } } // load when shown, stop when leaving
+      });
       dots.forEach(function (dt, j) { dt.classList.toggle('on', j === i); });
       cap.textContent = 'Fig. ' + pad(i + 1) + ': ' + imgs[i].dataset.caption;
       if (count) count.textContent = pad(i + 1) + ' / ' + pad(n);
       var nxt = imgs[(i + 1) % n]; if (nxt.loading === 'lazy') nxt.loading = 'eager';
+      if (n < 2) p.classList.add('single');
     };
     show(0);
     var stage = p.querySelector('.p-stage');
     var swiped = false;
-    stage.addEventListener('click', function () { if (!swiped) show(i + 1); swiped = false; });
+    stage.addEventListener('click', function (e) { if (e.target.closest('.vid')) return; if (!swiped) show(i + 1); swiped = false; });
     p.querySelector('.prev').addEventListener('click', function () { show(i - 1); });
     p.querySelector('.nextimg').addEventListener('click', function () { show(i + 1); });
     var tx = null;
@@ -125,4 +132,16 @@
       else if (e.key === 'Escape') setOpen(false);
     });
   }
+})();
+
+// Statement ends where the "Work" link starts
+(function () {
+  var w = document.getElementById('nav-work'), h = document.querySelector('.hero h1');
+  if (!w || !h) return;
+  function fit() {
+    var r = w.getBoundingClientRect().left - h.getBoundingClientRect().left;
+    h.style.setProperty('--stmt', Math.round(r) + 'px');
+  }
+  fit(); window.addEventListener('resize', fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 })();
