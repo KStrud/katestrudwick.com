@@ -22,7 +22,8 @@
       var vh = window.innerHeight;
       var heroTop = hero.getBoundingClientRect().top + window.scrollY;
       var heroH = Math.max(vh - heroTop, 480);              // hero fills the first screen
-      var L = layer.offsetWidth;
+      var LW = layer.offsetWidth;                         // the layer runs to the screen edges
+      var L = mob ? LW : hero.clientWidth, g0 = (LW - L) / 2; // lay the pile out within the text column
       var hr = h1.getBoundingClientRect(), r0 = hero.getBoundingClientRect();
       var tTop = hr.top - r0.top, tH = hr.height;
       var metaH = meta.offsetHeight;
@@ -42,34 +43,91 @@
         var ow = p[2] * s;
         var x = left0 + p[0] * s + j[0] * w * 0.06;
         var y = top0 + p[1] * s + j[1] * h * 0.07;
-        x = Math.min(Math.max(x, -L * 0.03), L * 1.03 - ow);
+        x = Math.min(Math.max(x, -L * 0.03), L * 1.03 - ow) + g0;
         el.style.width = Math.round(ow) + 'px';
-        el.style.left = (x / L * 100).toFixed(2) + '%';
+        el.style.left = (x / LW * 100).toFixed(2) + '%';
         el.style.top = Math.round(y) + 'px';
         el.style.zIndex = i + 1;
         el.querySelector('img').style.rotate = (p[3] + j[2] * 12).toFixed(1) + 'deg';
         el.style.setProperty('--delay', (120 + i * 110) + 'ms');
       });
+      if (window.ksTidied && window.ksTidied()) window.ksToEdges();
     };
     jitter();
     place();
-    window.ksPlaceObjects = place;
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
-    if (phone.addEventListener) phone.addEventListener('change', place);
+    // once someone has moved an object, leave everything where they put it
+    // (until they tidy up or come back to the page)
+    var moved = false;
+    var relayout = function () { if (!moved) place(); };
+    window.ksPlaceObjects = relayout;
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
+    if (phone.addEventListener) phone.addEventListener('change', function () { moved = false; place(); });
     var lastW = window.innerWidth, rt;
     window.addEventListener('resize', function () {
-      // phones resize when the address bar hides; only re-lay out when the width changes there
-      if (phone.matches && window.innerWidth === lastW) return;
+      // phones resize when the address bar shows or hides as you scroll: ignore anything but a width change
+      if (window.innerWidth === lastW) return;
       lastW = window.innerWidth;
-      clearTimeout(rt); rt = setTimeout(place, 200);
+      clearTimeout(rt); rt = setTimeout(relayout, 200);
     });
     var tidy = document.querySelector('.tidy');
-    if (tidy) tidy.addEventListener('click', function () {
-      jitter(); place();
-      objs.forEach(function (el) { // replay the fall
-        var im = el.querySelector('img');
-        im.style.animation = 'none'; void im.offsetWidth; im.style.animation = '';
+    var tidied = false;
+    var animate = function (on) { // glide when tidying, snap otherwise
+      objs.forEach(function (el) {
+        el.style.transition = on ? 'left .9s cubic-bezier(.2,.7,.1,1), top .9s cubic-bezier(.2,.7,.1,1)' : '';
+        el.querySelector('img').style.transition = on ? 'rotate .9s cubic-bezier(.2,.7,.1,1), scale .16s ease' : '';
       });
+    };
+    var toEdges = function () { // park each object just off screen, peeking in round the edges
+      var mob = phone.matches;
+      var L = layer.offsetWidth, lr = layer.getBoundingClientRect();
+      var leftEdge = -lr.left, rightEdge = document.documentElement.clientWidth - lr.left;
+      var hr = h1.getBoundingClientRect(), r0 = hero.getBoundingClientRect();
+      var heroH = hero.offsetHeight, metaH = meta.offsetHeight;
+      var top = hr.top - r0.top, below = hr.bottom - r0.top + 16, bottom = heroH - metaH - 30;
+      // where each object tucks away (van, coral, coin, surfboard, potato, sewing machine, shark, cats):
+      // right edge, left edge (below the statement) or peeking up from the bottom
+      var sides = mob ? ['r', 'l', 'r', 'l', 'l', 'l', 'r', 'r'] : ['r', 'l', 'r', 'b', 'l', 'l', 'r', 'b'];
+      var groups = { l: [], r: [], b: [] };
+      objs.forEach(function (el, i) { groups[sides[i % sides.length]].push(el); });
+      var bottomX = mob ? [0.3, 0.72] : [0.27, 0.73];
+      ['l', 'r', 'b'].forEach(function (s) {
+        var g = groups[s];
+        g.forEach(function (el, k) {
+          var w = el.offsetWidth, h = el.offsetHeight, x, y, rot;
+          if (s === 'b') {
+            var showH = Math.min(h * 0.38, mob ? 70 : 120);
+            x = leftEdge + (rightEdge - leftEdge) * bottomX[k % 2] - w / 2;
+            y = heroH - showH;
+            rot = (Math.random() * 2 - 1) * 10;
+          } else {
+            var from = s === 'l' || mob ? below : top + 10;
+            var cy = from + (bottom - from) * ((k + 0.5) / g.length);
+            cy = Math.max(from + h * 0.3, Math.min(bottom - h * 0.55, cy)); // keep clear of the line along the bottom
+            var show = Math.max(mob ? 34 : 56, Math.min(w * 0.3, mob ? 60 : 120)); // how much peeks in, in px
+            x = s === 'l' ? leftEdge - (w - show) : rightEdge - show;
+            y = cy - h / 2;
+            rot = (s === 'l' ? 1 : -1) * (6 + Math.random() * 14);
+          }
+          el.style.left = (x / L * 100).toFixed(2) + '%';
+          el.style.top = Math.round(y) + 'px';
+          el.querySelector('img').style.rotate = rot.toFixed(1) + 'deg';
+        });
+      });
+    };
+    window.ksTidied = function () { return tidied; };
+    window.ksToEdges = toEdges;
+    if (tidy) tidy.addEventListener('click', function () {
+      if (!tidied) {
+        moved = false; animate(true); toEdges(); tidied = true; tidy.textContent = 'bring them back';
+        setTimeout(function () { animate(false); }, 950);
+      } else {
+        tidied = false; tidy.textContent = 'tidy up';
+        moved = false; jitter(); place();
+        objs.forEach(function (el) { // replay the fall
+          var im = el.querySelector('img');
+          im.style.animation = 'none'; void im.offsetWidth; im.style.animation = '';
+        });
+      }
     });
 
     objs.forEach(function (el) {
@@ -80,6 +138,7 @@
         var r = layer.getBoundingClientRect();
         d = { sx: e.clientX, sy: e.clientY, ox: parseFloat(el.style.left), oy: parseFloat(el.style.top), w: r.width };
         el.style.zIndex = ++top;
+        moved = true;
       });
       el.addEventListener('pointermove', function (e) {
         if (!d) return;
@@ -104,6 +163,12 @@
     document.body.appendChild(print);
     var pimg = print.querySelector('img');
     var tilts = [-6, 5, -3, 7, -8, 4, -5, 6, -4];
+    var ratio = {}; // learn each picture's shape up front
+    Array.prototype.forEach.call(list.querySelectorAll('.row[data-print]'), function (row) {
+      var im = new Image();
+      im.onload = function () { ratio[row.dataset.print] = im.naturalWidth / im.naturalHeight; };
+      im.src = row.dataset.print;
+    });
     Array.prototype.forEach.call(list.querySelectorAll('.row'), function (row, i) {
       row.addEventListener('mouseenter', function () {
         // confidential projects show a 🤫, and projects with no picture show their own emoji
@@ -111,8 +176,11 @@
         var hush = !!e;
         if (e) emo.textContent = e;
         print.classList.toggle('hush', hush);
-        print.classList.toggle('wide', row.hasAttribute('data-wide')); // landscape pictures keep their shape
-        if (!hush) pimg.src = row.dataset.print;
+        if (!hush) {
+          pimg.src = row.dataset.print;
+          var a = ratio[row.dataset.print] || 0.8; // width / height
+          print.style.width = Math.round(Math.min(380, Math.sqrt(64000 * a))) + 'px'; // same area whatever the shape
+        }
         print.style.rotate = tilts[i % tilts.length] + 'deg';
         print.classList.add('on');
       });
@@ -120,9 +188,9 @@
     });
     list.addEventListener('mousemove', function (e) {
       var x = e.clientX + 28;
-      if (x + 250 > window.innerWidth) x = e.clientX - 248;
+      if (x + print.offsetWidth + 20 > window.innerWidth) x = e.clientX - print.offsetWidth - 28;
       print.style.left = x + 'px';
-      print.style.top = (e.clientY - 150) + 'px';
+      print.style.top = (e.clientY - print.offsetHeight / 2) + 'px';
     });
   }
 
@@ -144,6 +212,9 @@
       });
       dots.forEach(function (dt, j) { dt.classList.toggle('on', j === i); });
       cap.textContent = 'Fig. ' + pad(i + 1) + ': ' + imgs[i].dataset.caption;
+      if (imgs[i].dataset.note) { // a small aside, e.g. for AI-generated mockups
+        var nt = document.createElement('span'); nt.className = 'note'; nt.textContent = imgs[i].dataset.note; cap.appendChild(nt);
+      }
       if (count) count.textContent = pad(i + 1) + ' / ' + pad(n);
       var nxt = imgs[(i + 1) % n]; if (nxt.loading === 'lazy') nxt.loading = 'eager';
       if (n < 2) p.classList.add('single');
@@ -191,11 +262,14 @@
 (function () {
   var w = document.getElementById('nav-work'), h = document.querySelector('.hero h1');
   if (!w || !h) return;
+  var lastW = 0;
   function fit() {
+    if (window.innerWidth === lastW) return; // phones fire resize on scroll; only a width change matters
+    lastW = window.innerWidth;
     var r = w.getBoundingClientRect().left - h.getBoundingClientRect().left;
     h.style.setProperty('--stmt', Math.round(r) + 'px');
     if (window.ksPlaceObjects) window.ksPlaceObjects();
   }
   fit(); window.addEventListener('resize', fit);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { lastW = 0; fit(); });
 })();

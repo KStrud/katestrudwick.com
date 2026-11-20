@@ -41,7 +41,7 @@ img{max-width:100%}
 .tidy:hover{color:var(--ink)}
 
 /* the objects */
-.objects{position:absolute;inset:0;pointer-events:none;z-index:2}
+.objects{position:absolute;top:0;bottom:0;left:calc(-1 * var(--gutter));right:calc(-1 * var(--gutter));overflow:clip;pointer-events:none;z-index:2}
 .obj{position:absolute;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
 .obj:active{cursor:grabbing}
 .obj img{display:block;width:100%;height:auto;pointer-events:none;transition:scale .16s ease;animation:drop 1.1s cubic-bezier(.25,.8,.3,1) both;animation-delay:var(--delay,0ms)}
@@ -60,16 +60,14 @@ img{max-width:100%}
 .row .y{flex:0 0 72px;font-size:13px;color:var(--muted);text-align:right}
 .hover-print{position:fixed;left:0;top:0;width:220px;z-index:50;pointer-events:none;box-shadow:0 1px 2px rgba(40,32,20,.16),0 12px 26px rgba(40,32,20,.18);opacity:0;transition:opacity .15s ease}
 .hover-print.on{opacity:1}
-.hover-print.wide{width:320px}
-.hover-print.wide img{aspect-ratio:auto}
 .hover-print .e{display:none}
-.hover-print.hush{width:auto;box-shadow:none}
+.hover-print.hush{width:auto !important;box-shadow:none}
 .hover-print.hush img{display:none}
 .hover-print.hush .e{display:block;font-size:120px;line-height:1}
 .row .hush{display:block;margin-top:4px;font-family:var(--serif);color:var(--muted)}
 .row.secret{cursor:default}
 .row .hush a{color:var(--ink);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
-.hover-print img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover}
+.hover-print img{display:block;width:100%;height:auto}
 
 /* ---------- Home: about + contact ---------- */
 .about{display:flex;flex-wrap:wrap;gap:40px;border-top:1px solid var(--ink);margin-top:160px;padding-top:12px}
@@ -112,6 +110,7 @@ body.project{height:100vh;height:100dvh;overflow:hidden}
 .single .p-stage{cursor:auto}
 .p-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px 24px;padding:0 var(--gutter) 20px;font-family:var(--serif);font-size:11px}
 .p-foot .cap{flex:1 1 320px;color:var(--muted)}
+.p-foot .cap .note{margin-left:12px;padding-left:12px;border-left:1px solid var(--rule);opacity:.8}
 .p-nav{display:flex;gap:20px;align-items:center;font-variant-numeric:tabular-nums}
 .p-nav button{min-width:44px;min-height:44px;font-family:var(--sans);font-size:14px}
 .p-dots,.p-about{display:none}
